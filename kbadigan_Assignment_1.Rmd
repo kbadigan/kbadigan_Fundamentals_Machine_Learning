@@ -1,0 +1,61 @@
+---
+title: "Assignment_1_FML"
+author: "karthik badiganti"
+date: "2022-09-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###Packages
+
+```{r eval,echo=FALSE}
+require(car)
+library(car)
+require(ggplot2)
+library(ggplot2)
+
+```
+
+## Importing Dataset
+
+Below is the dataset extracted from url
+
+```{r Importing Data}
+insurance <- read.csv("https://query.data.world/s/3gsdwsenz6flftsu2eofpcnajaly2l", header=TRUE, stringsAsFactors=FALSE);
+summary(insurance)
+```
+
+## Transformation of Variables
+
+Below is the code for rounding off charges column and later sorting data by age column
+
+```{r Transforming Variables}
+#rounding off  charges column in dataset
+insurance$charges<-round(insurance$charges)
+
+
+#sorting by age column in dataset
+
+insurance_sort<-insurance[order(insurance$age),]
+print(insurance_sort)
+```
+
+## Line plot
+
+Below is the line plot for bmi vs charges grouped by region
+
+```{r plots}
+
+ggplot(data = insurance, mapping = aes(x = bmi, y = charges)) + geom_line() + facet_wrap(facets = vars(region))
+```
+
+## Scatter Plot
+
+scatter plot age vs charges grouped by region
+
+```{r scatter plot}
+scatterplot(bmi ~ age | region, data = insurance)
+```
