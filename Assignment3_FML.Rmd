@@ -122,8 +122,7 @@ pivot2
 pivot3<-ftable(Universal_bank_Train$CreditCard, Universal_bank_Train$Personal.Loan,
        row.vars = c(2),dnn=c('CreditCard', 'Personal.loan'))
 print("Pivot Table for the given variables is")
-pivot3
-     
+pivot3     
 ```
 
 ### D.Caculations Based on Pivot Tables
