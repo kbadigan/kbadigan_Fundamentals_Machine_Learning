@@ -1,0 +1,206 @@
+---
+title: "FMl Assignment 4"
+author: "Karthik Badiganti"
+date: "2022-11-03"
+output: learnr::tutorial
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading Packages
+
+```{r packages}
+
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(ISLR)
+library(tidyverse)
+library(factoextra)
+library(cluster)
+library(ggpubr)
+library(FactoMineR)
+library(gridExtra)
+library(ggcorrplot)
+library(esquisse)
+```
+
+## Data Preparation
+
+### Data Preparation {.tabset}
+
+#### Importing & Cleaning Data
+
+We are Importing Data from CSV file and cleaning
+
+```{r import and clean Data}
+
+
+ pharmaceuticals <- read.csv("C://Users//gbkar//Documents//R Scripts//pharmaceuticals.csv")
+
+
+
+# removing variables that are not required
+pharma_k <-pharmaceuticals[,c(1,3,4,5,6,7,8,9,10,11)]
+
+head(pharma_k)
+
+```
+
+#### Normalization
+
+```{r normalization}
+set.seed(123)
+
+# Using center, scale for normalization of all the variables
+norm_data <- preProcess(pharma_k[-1],method=c("center",'scale'))
+pharma_norm<-predict(norm_data,pharma_k[-1])
+head(pharma_norm)
+
+```
+
+We are normalizing data using center scale method as each variable has different units
+
+## A. K-Means
+
+### K selection
+
+```{r k selection}
+set.seed(23)
+wss<-fviz_nbclust(pharma_norm[-1], kmeans, method = "wss",k.max=7)
+silhouette<-fviz_nbclust(pharma_norm[-1], kmeans, method = "silhouette",k.max=7)
+grid.arrange(wss,silhouette)
+```
+
+### K means
+
+```{r k means}
+set.seed(23)
+rownames(pharma_k)<- pharma_k[[1]]
+# From silhouette method K=3
+k3 <- kmeans(pharma_norm[-1], centers = 3, nstart = 25)
+
+# From WSS method elbow k=2
+k2 <- kmeans(pharma_norm[-1], centers = 2, nstart = 25)
+
+K31<-fviz_cluster(k3, data=pharma_k[-1],main='Based on Silhoutte K=3')
+K21<-fviz_cluster(k2, data=pharma_k[-1],main='Based on WSS K=2')
+grid.arrange(K21,K31)
+ 
+```
+
+Based on the above plots we can assume K=3 has better clustering than k=2 as we can study properties of clusters more clearly with K=3
+
+### plots
+
+```{r plot}
+rownames(pharma_k)<- pharma_k[[1]]
+fviz_cluster(k3, data=pharma_k[-1])
+```
+
+## B. Interpret Clusters with Variables Used
+
+### Clusters
+
+```{r Analysis}
+clusters_pharma<-pharma_k %>% mutate(Cluster = k3$cluster)
+s1<-as.list(clusters_pharma %>%filter(Cluster==1)%>% select(cluster1=Symbol) )
+s2<-as.list(clusters_pharma %>%filter(Cluster==2)%>% select(cluster2=Symbol) )
+s3<-as.list(clusters_pharma %>%filter(Cluster==3)%>% select(cluster3=Symbol) )
+s<-as.data.frame(paste(s1[[1]],collapse = ' '))
+s<-rbind(s,paste(s2[[1]],collapse = ' '))
+s<-rbind(s,paste(s3[[1]],collapse = ' '))
+rownames(s)<-c('cluster1','cluster2','cluster3')
+colnames(s)<-'Firms Symbol'
+
+# Clusters Formed by K means
+s
+
+```
+
+### Analysis
+
+```{r clusters}
+clusplot(pharma_k,k3$cluster, main="Clusters",color = TRUE, labels = 2,lines = 0)
+c1<-clusters_pharma[-1]%>% group_by(Cluster)%>% summarise_all('mean')
+c1
+```
+
+From the above data, we can say that in
+
+cluster 2 -\> high market cap average, high ROE average
+
+cluster1-\> medium market cap average, low ROE average
+
+cluster3 -\> low market cap average, medium ROE average
+
+Similarly with the other variables
+
+## C. Pattern with variables 10 to 12
+
+```{r pattern c}
+pharma_c<-pharmaceuticals[,c(12,13,14)]
+pharma_c$cluster<-as.factor(clusters_pharma$Cluster)
+```
+
+### Bar plots with respect to other 3 variables {.tabset}
+
+#### Clusters vs Exchange
+
+```{r exchange}
+ggplot(pharma_c) +
+ aes(x = cluster, fill = Exchange, colour = Exchange, group = Exchange) +
+ geom_bar(position = "dodge") +
+ scale_fill_brewer(palette = "Accent", direction = 1) +
+ scale_color_brewer(palette = "Accent", direction = 1) +
+ theme_minimal()
+```
+
+From the graph, we can assume that the cluster grouping done based on the Exchange 'NYSE' with high medium and low with clusters 2,3,1 respectively
+
+#### Clusters vs Median Recommendation
+
+```{r median}
+ggplot(pharma_c) +
+ aes(x = cluster, fill = Median_Recommendation, colour = Median_Recommendation, group = Median_Recommendation) +
+ geom_bar(position = "dodge") +
+ scale_fill_brewer(palette = "Accent", direction = 1) +
+ scale_color_brewer(palette = "Accent", 
+ direction = 1) +
+ theme_minimal()
+```
+
+From the graph, we can assume that the cluster grouping done based on the median recommendation 'Hold' with high medium and low with clusters 2,1,3 respectively
+
+#### Clusters vs Location
+
+```{r location}
+
+ggplot(pharma_c) +
+ aes(x = cluster, fill = Location, colour = Location, group = Location) +
+ geom_bar(position = "dodge") +
+ scale_fill_brewer(palette = "Accent", direction = 1) +
+ scale_color_brewer(palette = "Accent", direction = 1) +
+ theme_minimal()
+
+
+```
+
+From the graph, we can assume that the cluster grouping done based on the Location 'US' with high medium and low with clusters 2,3,1 respectively
+
+### Summarize
+
+From the above plots we assume that cluster 2 is grouped based on high count of one of the category in each of the variables and cluster 3 with medium count and cluster 1 has low count of categorical count.
+
+## D. Appropriate Names to Clusters
+
+Based on the Median recommendation graph we can say that
+
+Cluster 1: New buyers
+
+Cluster2: Experienced Traders
+
+Cluster3: Resellers
