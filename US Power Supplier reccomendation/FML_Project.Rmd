@@ -1,0 +1,164 @@
+---
+title: "FML_Project"
+author: "Karthik Badiganti"
+date: "2022-12-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading Packages
+
+```{r packages, message=FALSE, warning=FALSE, include=FALSE}
+
+library(class)
+library(caret)
+library(ISLR)
+library(tidyverse)
+library(fastDummies)
+library(knitr)
+library(readr)
+library(dplyr)
+library(class)
+library(caret)
+library(ISLR)
+library(tidyverse)
+library(fastDummies)
+library(knitr)
+library(dplyr)
+library(car)
+library(leaps)
+library(bestglm)
+library(rpart)
+library(rattle)
+library(VIM)
+library(ggcorrplot)
+library(tidyverse)  # data manipulation
+library(factoextra)
+library("dbscan")
+library('fpc')
+library(cluster )
+library(mice)
+```
+
+## Importing & Cleaning Data
+
+
+
+```{r import and clean Data}
+fuel <- read.csv("R Scripts/fuel_receipts_costs_eia923.csv",na.strings = "")
+
+
+
+fuel<-fuel[,-c(3,7,12,13,19,21,22,23,24,25,26,27,28)]
+
+```
+
+
+## Sampling 2% percent data
+```{r random sampling, include=FALSE}
+set.seed(4897)
+
+
+fuel_1<-fuel%>%sample_frac(.02)
+
+colSums(is.na(fuel_1))
+
+fuel_2<-fuel_1[,c(9,10,11,12,13,14,15)]
+fuel_2$fuel_group_code<-as.factor(fuel_2$fuel_group_code)
+
+# imputing in missing values using pmm method
+imputed_Data <- mice(fuel_2, m=5, maxit = 50, method = 'pmm', seed = 500)
+
+
+fuel_3 <- complete(imputed_Data,2)
+
+# Data Partition
+Index_Train_fuel<-createDataPartition(fuel_3$fuel_cost_per_mmbtu, p=0.75, list=FALSE)
+fuel_3_Train <-fuel_3[Index_Train_fuel,]
+fuel_3_Validation  <-fuel_3[-Index_Train_fuel,]
+```
+
+
+```{r normalization}
+
+set.seed(2121)
+norm_model<-preProcess(fuel_3_Train, method = c('center','scale'))
+fuel_3_Train_norm<-predict(norm_model,fuel_3_Train)
+
+fuel_3_Validation_norm<-predict(norm_model,fuel_3_Validation)
+
+
+```
+
+
+```{r k means}
+set.seed(1212)
+fviz_nbclust(fuel_3_Train_norm[-c(1,2)], kmeans, method = "wss")
+fviz_nbclust(fuel_3_Train_norm[-c(1,2)], kmeans, method = "silhouette")
+
+k4 <- kmeans(fuel_3_Train_norm[-c(1,2)], centers = 6, nstart = 25)
+k4$centers
+
+fviz_cluster(k4, data = fuel_3_Train[-c(1,2)])
+
+data1 <- bind_cols(fuel_3_Train, cluster = factor(k4$cluster))
+
+# make a table to confirm it gives the same results as the original code
+
+# using ggplot, make a point plot with "jitter" so each point is visible
+# x-axis is species, y-axis is cluster, also coloured according to cluster
+ggplot(data1) +
+  geom_point(mapping = aes(x=data1[,1], y = cluster, colour = cluster),
+             position = "jitter") +
+  labs(title = "K Means")
+
+s1<-data1%>%group_by(cluster)%>%summarise(avg_sulphur=mean(sulfur_content_pct),
+                                          avg_ash=mean(ash_content_pct),
+                                      avg_units=mean(fuel_received_units),
+                                      avg_mmbtu=mean(fuel_mmbtu_per_unit),
+                                      avg_cost=mean((fuel_cost_per_mmbtu)),
+                                      supplier_count=n())%>%
+  arrange(supplier_count)
+
+s2<-data1%>%group_by(fuel_group_code)%>%summarise(avg_sulphur=mean(sulfur_content_pct),
+                                                  avg_ash=mean(ash_content_pct),
+                                      avg_units=mean(fuel_received_units),
+                                      avg_mmbtu=mean(fuel_mmbtu_per_unit),
+                                      avg_cost=mean(fuel_cost_per_mmbtu),
+                                      supplier_count=n())%>%
+  arrange(supplier_count)
+s3<-data1%>%filter(fuel_group_code=='coal')%>%group_by(cluster)%>%
+  summarise(avg_sulphur=mean(sulfur_content_pct),avg_ash=mean(ash_content_pct),
+                                      avg_units=mean(fuel_received_units),
+            avg_mmbtu=mean(fuel_mmbtu_per_unit),
+                                      avg_cost=mean((fuel_cost_per_mmbtu)),
+            supplier_count=n())%>%arrange(supplier_count)
+
+s1
+s2
+s3
+
+```
+
+
+## Fuel Cost Prediction
+
+### Building regression models
+
+```{r fuel cost model}
+
+
+lm1<-lm(fuel_cost_per_mmbtu~.,data=fuel_3_Train)
+print(paste("R square of the model before adding clustering information is",
+            summary(lm1)$r.squared))
+
+lm2<-lm(fuel_cost_per_mmbtu~.,data=data1)
+print(paste("R square of the model after adding clustering information is",
+            summary(lm2)$r.squared))
+```
+
+It can be observed that r.square value before adding clustering information is 
+47.5% after adding clustering 94.66%
